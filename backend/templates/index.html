@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-Time ISS Tracker with Globe</title>
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- ThreeGlobe library -->
+  <script src="https://unpkg.com/three-globe"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #222;
+      color: #fff;
+    }
+    h1 {
+      margin: 20px 0;
+    }
+    #info {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    #globeViz {
+      width: 600px;
+      height: 600px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Real-Time ISS Tracker</h1>
+  <div id="info">
+    Latitude: <span id="latitude">Loading...</span> |
+    Longitude: <span id="longitude">Loading...</span> |
+    Country Code: <span id="country_code">Loading...</span>
+  </div>
+  <div id="globeViz"></div>
+
+  <script>
+    // Initialize Socket.IO
+    var socket = io();
+
+    // Three.js and ThreeGlobe setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(600, 600);
+    document.getElementById('globeViz').appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, 600 / 600, 0.1, 1000);
+    camera.position.z = 250;
+
+    // Create the globe
+    const Globe = new ThreeGlobe()
+      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-dark.jpg')
+      .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png');
+
+    scene.add(Globe);
+
+    // Add light
+    const ambientLight = new THREE.AmbientLight(0xbbbbbb);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(100, 40, 100);
+    scene.add(directionalLight);
+
+    // Function to render the scene
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Marker for the ISS
+    let issMarker = null;
+    function updateISSMarker(lat, lon) {
+      // Convert latitude and longitude to 3D Cartesian coordinates on the globe.
+      // Assuming radius ~100 for globe scaling.
+      const radius = Globe.getGlobeRadius() || 100;
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+
+      const x = -radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.cos(phi);
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+
+      // Create or update the marker.
+      if (!issMarker) {
+        const markerGeometry = new THREE.SphereGeometry(2, 16, 16);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        issMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+        scene.add(issMarker);
+      }
+      issMarker.position.set(x, y, z);
+    }
+
+    // Listen for ISS updates from the server.
+    socket.on('iss_update', function(data) {
+      if (data.error) {
+        console.error("Error: " + data.error);
+      } else {
+        // Update the numerical display.
+        document.getElementById("latitude").textContent = data.latitude.toFixed(4);
+        document.getElementById("longitude").textContent = data.longitude.toFixed(4);
+        document.getElementById("country_code").textContent = data.country_code;
+        // Update the globe marker.
+        updateISSMarker(data.latitude, data.longitude);
+      }
+    });
+  </script>
+</body>
+</html>
