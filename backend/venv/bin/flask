@@ -1,4 +1,4 @@
-#!/mnt/c/Users/wasse/OneDrive/Documents/flask_cicd/backend/venv/bin/python3
+#!/Users/wasserstiefel/Documents/cicd_flask/backend/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys

@@ -3,30 +3,33 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 import requests
 import time
+import logging
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
 
-# Allow CORS for the frontend origin
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
+# Allow CORS for Docker and local testing
+CORS(app, resources={r"/*": {"origins": "*"}})  # Adjust for production
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 def fetch_iss_data():
     try:
-        # Fetch the current ISS position
-        iss_response = requests.get("https://api.wheretheiss.at/v1/satellites/25544")
+        iss_response = requests.get("https://api.wheretheiss.at/v1/satellites/25544", timeout=5)
         if iss_response.ok:
             iss_data = iss_response.json()
             lat = iss_data.get("latitude")
             lon = iss_data.get("longitude")
-            # Now use the coordinates endpoint to get location details (e.g., country_code)
             coord_url = f"https://api.wheretheiss.at/v1/coordinates/{lat},{lon}?indent=4"
-            coord_response = requests.get(coord_url)
+            coord_response = requests.get(coord_url, timeout=5)
             if coord_response.ok:
                 coord_data = coord_response.json()
                 country_code = coord_data.get("country_code", "N/A")
             else:
+                logger.warning("Coordinates API failed: %s", coord_response.text)
                 country_code = "N/A"
             return {
                 "latitude": lat,
@@ -34,14 +37,16 @@ def fetch_iss_data():
                 "country_code": country_code
             }
         else:
+            logger.error("ISS API failed: %s", iss_response.text)
             return {"error": "Error fetching ISS position"}
     except Exception as e:
+        logger.error("Exception in fetch_iss_data: %s", str(e))
         return {"error": str(e)}
 
 def background_thread():
-    # Continuously fetch ISS data and emit updates every second
     while True:
         data = fetch_iss_data()
+        logger.info("Emitting ISS data: %s", data)
         socketio.emit('iss_update', data)
         time.sleep(1)
 
@@ -51,13 +56,12 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
-    print("Client connected")
-    # Start the background task on client connection
+    logger.info("Client connected")
     socketio.start_background_task(background_thread)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print("Client disconnected")
+    logger.info("Client disconnected")
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)  # Debug off for Docker

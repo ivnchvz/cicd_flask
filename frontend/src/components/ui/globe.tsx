@@ -5,11 +5,9 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import ThreeGlobe from "three-globe";
 import * as THREE from "three";
-import io from "socket.io-client";
+import { FeatureCollection } from "geojson";
 
-const socket = io("http://127.0.0.1:5000"); // Replace with your Flask backend URL
-
-interface GlobeProps {
+export interface GlobeProps {
   issLatitude: number;
   issLongitude: number;
   globeConfig?: {
@@ -22,10 +20,16 @@ interface GlobeProps {
   };
 }
 
+// Define the custom type for globeRef
+interface CustomGlobe extends THREE.Object3D {
+  getGlobeRadius: () => number;
+  issMarker?: THREE.Mesh;
+}
+
 const GlobeScene: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeConfig }) => {
-  const globeRef = useRef<any>(null);
-  const groupRef = useRef<THREE.Group>(null); // Ref for the group
-  const [countries, setCountries] = useState<any>(null);
+  const globeRef = useRef<CustomGlobe>(null); // Use the custom type for the globe reference
+  const groupRef = useRef<THREE.Group | null>(null); // Ref for the group
+  const [countries, setCountries] = useState<FeatureCollection | null>(null); // Use FeatureCollection for GeoJSON data
 
   // Fine-tuning offsets for ISS marker
   const latitudeOffset = 0.1; // Adjust this value as needed
@@ -39,10 +43,10 @@ const GlobeScene: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeConf
         if (!response.ok) {
           throw new Error(`Failed to fetch globe.json: ${response.statusText}`);
         }
-        const data = await response.json();
+        const data: FeatureCollection = await response.json();
         setCountries(data);
       } catch (error) {
-        console.error("Error fetching countries data:", error);
+        console.error(error);
       }
     };
     fetchCountries();
@@ -60,7 +64,7 @@ const GlobeScene: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeConf
         .hexPolygonResolution(3)
         .hexPolygonMargin(0.7);
 
-      globeRef.current = globe;
+      globeRef.current = globe as CustomGlobe; // Assign the globe instance to the ref
 
       // Add the globe to the group only if groupRef.current is not null
       if (groupRef.current) {
@@ -120,28 +124,43 @@ const GlobeScene: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeConf
     // Debugging logs for fine-tuning
     console.log("Adjusted Coordinates:", { adjustedLatitude, adjustedLongitude });
     console.log("3D Coordinates:", { x, y, z });
-  }, [issLatitude, issLongitude]);
+  }, [issLatitude, issLongitude, latitudeOffset, longitudeOffset]); // Added latitudeOffset and longitudeOffset
+
+  // Example of using countries
+  useEffect(() => {
+    if (countries) {
+      console.log("Countries FeatureCollection:", countries);
+      // Use countries.features here if needed
+    }
+  }, [countries]);
 
   return <group ref={groupRef} />;
 };
 
-export const Globe: React.FC<GlobeProps> = (props) => {
+export const Globe: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeConfig }) => {
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true only after mounting on the client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   return (
     <div style={{ position: "absolute", top: 0, left: 0, width: "100vw", height: "100vh" }}>
-      <Canvas
-        camera={{ position: [0, 0, 600], fov: 50 }} // Adjusted camera position to make the globe smaller
-      >
-        <ambientLight color={"#D3D3D3"} intensity={0.8} /> {/* Soft gray light */}
-        <directionalLight color={"#D3D3D3"} position={[-400, 100, 400]} intensity={3.0} /> {/* Bright white light */}
-        <OrbitControls
-          enableZoom={true}
-          minDistance={500} // Prevent zooming in too close
-          maxDistance={800} // Prevent zooming out too far
-          autoRotate={props.globeConfig?.autoRotate ?? true}
-          autoRotateSpeed={props.globeConfig?.autoRotateSpeed ?? 1}
-        />
-        <GlobeScene {...props} />
-      </Canvas>
+      {isClient && (
+        <Canvas camera={{ position: [0, 0, 600], fov: 50 }}>
+          <ambientLight color={"#D3D3D3"} intensity={0.8} />
+          <directionalLight color={"#D3D3D3"} position={[-400, 100, 400]} intensity={3.0} />
+          <OrbitControls
+            enableZoom={true}
+            minDistance={500}
+            maxDistance={800}
+            autoRotate={globeConfig?.autoRotate ?? true}
+            autoRotateSpeed={globeConfig?.autoRotateSpeed ?? 1}
+          />
+          <GlobeScene issLatitude={issLatitude} issLongitude={issLongitude} globeConfig={globeConfig} />
+        </Canvas>
+      )}
     </div>
   );
 };
