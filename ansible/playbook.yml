@@ -12,3 +12,39 @@
       apt:
         name: docker.io
         state: present
+
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose-plugin
+        state: present
+      
+    - name: Create app directory
+      file:
+        path: /app
+        state: directory
+        mode: '0755'
+
+    # Copy application files
+    - name: Copy frontend directory
+      copy:
+        src: "{{ playbook_dir }}/../frontend/"
+        dest: /app/frontend/
+        mode: preserve
+
+    - name: Copy backend directory
+      copy:
+        src: "{{ playbook_dir }}/../backend/"
+        dest: /app/backend/
+        mode: preserve
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: "{{ playbook_dir }}/../docker-compose.yml"
+        dest: /app/docker-compose.yml
+        mode: '0644'
+
+    # Build and start containers
+    - name: Run docker compose
+      shell: docker compose up -d
+      args:
+        chdir: /app

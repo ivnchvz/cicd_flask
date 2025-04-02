@@ -59,6 +59,13 @@ pipeline {
                             chmod 600 /workspace/keys/ec2_key
                             ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key /workspace/keys/ec2_key --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
+
+                         // Display application endpoints
+                        echo "========================================"
+                        echo "Application deployed successfully!"
+                        echo "Frontend endpoint: http://${ec2_ip}:3000"
+                        echo "Backend endpoint: http://${ec2_ip}:5001"
+                        echo "========================================"
                     }
                 }
             }

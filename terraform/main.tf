@@ -24,15 +24,31 @@ resource "aws_instance" "example" {
 
 # Security group to allow SSH access
 resource "aws_security_group" "instance" {
-  name        = "allow-ssh"
-  description = "Allow SSH inbound traffic"
+  name        = "allow-app-access"
+  description = "Allow SSH and application access"
 
   ingress {
     description = "SSH from anywhere"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Note: For production, restrict this to your IP
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Frontend access"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Backend access"
+    from_port   = 5001
+    to_port     = 5001
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -43,7 +59,7 @@ resource "aws_security_group" "instance" {
   }
 
   tags = {
-    Name = "allow-ssh"
+    Name = "allow-app-access"
   }
 }
 
