@@ -22,8 +22,7 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:latest'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -v /var/run/docker.sock:/var/run/docker.sock'
-                    entrypoint ''  // Add this line to override the entrypoint
+                    args '-u 0 -v ${WORKSPACE}:/workspace -v /var/run/docker.sock:/var/run/docker.sock --entrypoint=""'
                 }
             }
             steps {
@@ -45,8 +44,7 @@ pipeline {
             agent {
                 docker {
                     image 'cytopia/ansible:latest'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/ansible'
-                    entrypoint ''  // Add this line to override the entrypoint
+                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/ansible --entrypoint=""'
                 }
             }
             steps {
