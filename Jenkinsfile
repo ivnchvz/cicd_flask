@@ -32,7 +32,7 @@ pipeline {
                             pwd
                             ls -la
                             sed -i 's/instance_type = "t2.micro"/instance_type = "t2.micro"\\n  key_name = "${KEY_NAME}"/' main.tf
-                            terraform init -vvv
+                            terraform init
                             terraform apply -auto-approve
                         """
                     }
