@@ -9,6 +9,9 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh '''
+                        # Remove any existing keys in the workspace's keys directory
+                        rm -f ${WORKSPACE}/keys/ec2_key ${WORKSPACE}/keys/ec2_key.pub
+                        
                         # Generate a new SSH key
                         mkdir -p ${WORKSPACE}/keys
                         ssh-keygen -t rsa -b 2048 -f ${WORKSPACE}/keys/ec2_key -N ""
