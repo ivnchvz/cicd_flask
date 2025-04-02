@@ -27,7 +27,7 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:latest'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/terraform'
+                    args '-u 0 -v ${WORKSPACE}:/workspace -v /var/run/docker.sock:/var/run/docker.sock -w /workspace/terraform'
                 }
             }
             steps {
@@ -62,8 +62,8 @@ pipeline {
                             chmod 600 /workspace/keys/ec2_key
                             ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key /workspace/keys/ec2_key --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
-
-                         // Display application endpoints
+                        
+                        // Display application endpoints
                         echo "========================================"
                         echo "Application deployed successfully!"
                         echo "Frontend endpoint: http://${ec2_ip}:3000"
