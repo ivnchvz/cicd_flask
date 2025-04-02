@@ -27,7 +27,7 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:latest'
-                    args '-v ${WORKSPACE}:/workspace -w /workspace/terraform'
+                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/terraform'
                 }
             }
             steps {
@@ -47,7 +47,7 @@ pipeline {
             agent {
                 docker {
                     image 'cytopia/ansible:latest'
-                    args '-v ${WORKSPACE}:/workspace -w /workspace/ansible'
+                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/ansible'
                 }
             }
             steps {
