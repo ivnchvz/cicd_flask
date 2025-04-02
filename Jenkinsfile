@@ -33,6 +33,9 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
+                        pwd
+                        ls -la
+
                         # Update the terraform file to include key_name
                         sed -i 's/instance_type = "t2.micro"/instance_type = "t2.micro"\\n  key_name = "${KEY_NAME}"/' main.tf
                         
