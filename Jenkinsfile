@@ -83,7 +83,7 @@ pipeline {
                             
                             # Wait for instance to be accessible via SSH
                             echo "Waiting for SSH access..."
-                            timeout 180 bash -c 'until nc -z ${ec2_ip} 22; do sleep 5; echo "Waiting for SSH..."; done' || (echo "Failed to connect to instance via SSH" && exit 1)
+                            timeout 180 bash -c 'until ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -i ${KEY_PATH} ec2-user@${ec2_ip} "echo SSH ready"; do sleep 5; echo "Waiting for SSH..."; done' || (echo "Failed to connect to instance via SSH" && exit 1)
                         """
                     }
                 }
