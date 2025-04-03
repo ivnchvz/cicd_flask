@@ -4,6 +4,7 @@ pipeline {
         AWS_REGION = 'us-east-1'
         KEY_NAME = "jenkins-deploy-key-${BUILD_NUMBER}"
         KEY_PATH = "${WORKSPACE}/keys/ec2_key"  // Define a consistent key path
+        GLOBAL_WORKSPACE = "${WORKSPACE}"       // Capture the main workspace path
     }
     stages {
         stage('Generate SSH Key') {
@@ -46,16 +47,23 @@ pipeline {
                             terraform apply -auto-approve tfplan || (echo "Terraform apply failed" && exit 1)
                             
                             echo "Getting instance IP..."
-                            terraform output -raw instance_ip > ${WORKSPACE}/instance_ip.txt
+                            # Save to an absolute path that will be accessible to all stages
+                            terraform output -raw instance_ip > ${GLOBAL_WORKSPACE}/instance_ip.txt
                             
                             echo "Instance IP:"
-                            cat ${WORKSPACE}/instance_ip.txt
+                            cat ${GLOBAL_WORKSPACE}/instance_ip.txt
                             
                             echo "Terraform state list:"
                             terraform state list
                             
-                            echo "EC2 instance details from Terraform:"
-                            terraform state show module.ec2_instance.aws_instance.this[0] || echo "Instance not found in state"
+                            # Only try to show details if instance actually exists in state
+                            if terraform state list | grep -q "aws_instance.example"; then
+                                echo "EC2 instance details from Terraform:"
+                                terraform state show aws_instance.example
+                            else
+                                echo "Instance not found with expected resource name. Available resources:"
+                                terraform state list
+                            fi
                         """
                     }
                 }
@@ -68,7 +76,7 @@ pipeline {
                     script {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh """
-                            echo "Verifying EC2 instance..."
+                            echo "Verifying EC2 instance with IP: ${ec2_ip}..."
                             
                             # Check if EC2 instance is running
                             aws ec2 describe-instances --region ${AWS_REGION} --filters "Name=ip-address,Values=${ec2_ip}" --query 'Reservations[*].Instances[*].[InstanceId,State.Name]' --output table
@@ -128,7 +136,7 @@ pipeline {
                     sh """
                         echo "Cleaning up resources..."
                         
-                        # Try to delete key pair, but don't fail if it doesn't exist
+                        # Try to delete key pair, but don't fail if it doesn't exist or if permission is denied
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || echo "Warning: Could not delete key pair. Check IAM permissions."
                         
                         echo "Removing local files..."
@@ -159,7 +167,7 @@ pipeline {
                                 echo "No instances found with key ${KEY_NAME}"
                             fi
                             
-                            # Try to delete the key pair
+                            # Try to delete the key pair but don't fail the pipeline if it doesn't work
                             aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || echo "Could not delete key pair ${KEY_NAME}"
                         """
                     } catch (Exception e) {
