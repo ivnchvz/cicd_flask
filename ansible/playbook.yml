@@ -61,7 +61,7 @@
       register: docker_compose_start
 
     - name: Check docker compose container status
-      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format '{{.State.Status}}' || echo "no containers"
+      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format "'{{.State.Status}}'" || echo "no containers"
       args:
         chdir: /app
       register: container_status
