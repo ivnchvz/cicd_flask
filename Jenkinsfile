@@ -54,6 +54,7 @@ pipeline {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh "sleep 45"  // Wait for instance to be ready
                         sh """
+                            apk add --no-cache openssh-client
                             ls -la
                             chmod 600 ${KEY_PATH}
                             pwd
