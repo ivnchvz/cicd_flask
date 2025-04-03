@@ -8,7 +8,7 @@
         name: '*'
         state: latest
         update_cache: yes
-        use_backend: dn4
+        use_backend: yum
 
     - name: Install Docker
       yum:

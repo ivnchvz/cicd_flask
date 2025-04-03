@@ -44,7 +44,7 @@ pipeline {
         stage('Ansible Deployment') {
             agent {
                 docker {
-                    image 'cytopia/ansible:latest'
+                    image 'cytopia/ansible:2.9-tools'
                     args '-u 0 -v ${WORKSPACE}:/workspace --entrypoint=""'
                 }
             }
