@@ -61,13 +61,25 @@
       debug:
         var: compose_file_content.stdout_lines
 
-    - name: Start docker compose in background
-      shell: cd /app && /usr/local/bin/docker-compose up -d
+    # Modified Docker Compose section with verbose logging
+    - name: Start docker compose in verbose mode
+      shell: cd /app && /usr/local/bin/docker-compose --verbose up -d
       register: docker_compose_start
 
     - name: Debug docker-compose up output
       debug:
-        var: docker_compose_start
+        var: docker_compose_start.stdout_lines
+
+    - name: Stream real-time Docker logs
+      shell: cd /app && /usr/local/bin/docker-compose logs -f
+      register: docker_logs
+      async: 180  # Allow 3 minutes for log streaming
+      poll: 0
+      changed_when: false
+
+    - name: Pause for initial log capture
+      pause:
+        seconds: 25
 
     - name: List all Docker containers
       shell: docker ps -a
@@ -78,18 +90,14 @@
       debug:
         var: docker_ps.stdout_lines
 
-    - name: Pause for initial container startup
-      pause:
-        seconds: 10
-
     - name: Check docker compose container status
       shell: cd /app && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format {% raw %}'{{.State.Status}}'{% endraw %} || echo "no containers"
       register: container_status
       until: >
         container_status.stdout is search("running") and
         not container_status.stdout is search("created|exited|no containers")
-      retries: 20  # Check every 30s for up to 10 minutes (20 * 30s = 600s)
-      delay: 30    # Wait 30 seconds between checks
+      retries: 20
+      delay: 30
       failed_when: container_status.rc != 0 or container_status.stdout is search("exited|no containers")
 
     - name: Debug container status on failure
