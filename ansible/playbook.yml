@@ -3,28 +3,37 @@
   hosts: all
   become: yes
   tasks:
-    - name: Update apt cache and upgrade packages
-      apt:
+    - name: Update yum cache and upgrade packages
+      yum:
+        name: '*'
+        state: latest
         update_cache: yes
-        upgrade: dist
 
     - name: Install Docker
-      apt:
-        name: docker.io
+      yum:
+        name: docker
         state: present
 
     - name: Install Docker Compose
-      apt:
-        name: docker-compose-plugin
-        state: present
-      
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
     - name: Create app directory
       file:
         path: /app
         state: directory
         mode: '0755'
 
-    # Copy application files
     - name: Copy frontend directory
       copy:
         src: "{{ playbook_dir }}/../frontend/"
@@ -43,8 +52,7 @@
         dest: /app/docker-compose.yml
         mode: '0644'
 
-    # Build and start containers
     - name: Run docker compose
-      shell: docker compose up -d
+      shell: docker-compose up -d
       args:
         chdir: /app
