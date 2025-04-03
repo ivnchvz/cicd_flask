@@ -33,6 +33,8 @@ pipeline {
                             ls -la
                             terraform init
                             terraform apply -auto-approve -var="key_name=${KEY_NAME}"
+                            # Save the IP address to a file that can be read in the next stage
+                            terraform output -raw instance_ip > ${WORKSPACE}/instance_ip.txt
                         """
                     }
                 }
@@ -49,9 +51,9 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     script {
-                        // Using the full workspace path to ensure we're in the correct directory
-                        def ec2_ip = sh(script: "terraform -chdir=/workspace/terraform output -raw instance_ip", returnStdout: true).trim()
-                        sh "sleep 45"
+                        // Read the IP from the file saved in the previous stage
+                        def ec2_ip = sh(script: "cat /workspace/instance_ip.txt", returnStdout: true).trim()
+                        sh "sleep 45"  // Wait for instance to be ready
                         sh """
                             chmod 600 /workspace/keys/ec2_key
                             cd /workspace/ansible
@@ -73,6 +75,7 @@ pipeline {
                     sh """
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION}
                         rm -f ${WORKSPACE}/keys/ec2_key ${WORKSPACE}/keys/ec2_key.pub
+                        rm -f ${WORKSPACE}/instance_ip.txt
                     """
                 }
             }
