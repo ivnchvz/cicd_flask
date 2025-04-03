@@ -4,7 +4,7 @@
   become: yes
   vars:
     COMPOSE_DIR: /app
-    DOCKER_COMPOSE_VERSION: "v2.25.0"  # Explicit version for stability
+    DOCKER_COMPOSE_VERSION: "v2.25.0"
 
   tasks:
     - name: Update yum cache and upgrade packages
@@ -13,10 +13,31 @@
         state: latest
         update_cache: yes
 
+    # Added Docker group management
+    - name: Create docker group
+      group:
+        name: docker
+        state: present
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
     - name: Install Docker
       yum:
         name: docker
         state: present
+      notify: Restart docker
+
+    # Added symlink for docker-compose
+    - name: Create docker-compose symlink
+      file:
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
+        force: yes
 
     - name: Install dependencies for Docker Compose
       yum:
@@ -50,6 +71,7 @@
         state: started
         enabled: yes
 
+    # Modified docker-compose commands to use full path
     - name: Create app directory
       file:
         path: "{{ COMPOSE_DIR }}"
@@ -58,88 +80,34 @@
         owner: ec2-user
         group: ec2-user
 
-    # Removed async/poll from these two tasks:
-    - name: Copy frontend directory (with validation)
+    - name: Copy frontend directory
       copy:
         src: "{{ playbook_dir }}/../frontend/"
         dest: "{{ COMPOSE_DIR }}/frontend/"
         mode: preserve
-      register: frontend_copy
 
-    - name: Copy backend directory (with validation)
+    - name: Copy backend directory
       copy:
         src: "{{ playbook_dir }}/../backend/"
         dest: "{{ COMPOSE_DIR }}/backend/"
         mode: preserve
-      register: backend_copy
 
-    - name: Copy docker-compose.yml (with validation)
+    - name: Copy docker-compose.yml
       copy:
         src: "{{ playbook_dir }}/../docker-compose.yml"
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
         mode: '0644'
-      register: compose_file_copy
 
     - name: Validate docker-compose.yml syntax
       command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose config -q"
-      when: compose_file_copy.changed
       register: compose_validation
       changed_when: false
 
-    - name: Debug docker-compose.yml validation
-      debug:
-        var: compose_validation.stdout_lines
-      when: compose_validation.rc != 0
-
     - name: Start containers with Docker Compose
       command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose up -d --build"
-      async: 1800  # 30 minute timeout
-      poll: 0  # Fire and forget (use with async to prevent timeout)
+      async: 1800
+      poll: 0
       register: docker_compose_up
-
-    - name: Show Docker Compose output
-      debug:
-        var: docker_compose_up.stdout_lines
-
-    - name: Check container status
-      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect -f '{{.State.Status}}'"
-      register: container_status
-      until: container_status.stdout is search("running")
-      retries: 12  # 1 minute (5s x 12)
-      delay: 5
-      changed_when: false
-
-    - name: Show container status
-      debug:
-        var: container_status.stdout
-
-    - name: Get Docker Compose logs if containers not running
-      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose logs"
-      when: container_status.rc != 0 or not container_status.stdout is search("running")
-      register: docker_logs
-      changed_when: false
-
-    - name: Show Docker Compose logs
-      debug:
-        var: docker_logs.stdout_lines
-      when: container_status.rc != 0 or not container_status.stdout is search("running")
-
-    - name: Check system resources
-      shell: |
-        echo "### MEMORY ###"
-        free -m
-        echo "### DISK ###"
-        df -h
-        echo "### PROCESSES ###"
-        ps auxf
-      when: container_status.rc != 0 or not container_status.stdout is search("running")
-      register: system_resources
-      changed_when: false
-
-    - name: Show system resources
-      debug:
-        var: system_resources.stdout_lines
-      when: container_status.rc != 0 or not container_status.stdout is search("running")
 
   handlers:
     - name: Restart docker
