@@ -58,14 +58,13 @@
         owner: ec2-user
         group: ec2-user
 
+    # Removed async/poll from these two tasks:
     - name: Copy frontend directory (with validation)
       copy:
         src: "{{ playbook_dir }}/../frontend/"
         dest: "{{ COMPOSE_DIR }}/frontend/"
         mode: preserve
       register: frontend_copy
-      async: 2000  # For large directories
-      poll: 5
 
     - name: Copy backend directory (with validation)
       copy:
@@ -73,8 +72,6 @@
         dest: "{{ COMPOSE_DIR }}/backend/"
         mode: preserve
       register: backend_copy
-      async: 2000  # For large directories
-      poll: 5
 
     - name: Copy docker-compose.yml (with validation)
       copy:
@@ -105,7 +102,7 @@
         var: docker_compose_up.stdout_lines
 
     - name: Check container status
-      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect - f '{{.State.Status}}'"
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect -f '{{.State.Status}}'"
       register: container_status
       until: container_status.stdout is search("running")
       retries: 12  # 1 minute (5s x 12)
