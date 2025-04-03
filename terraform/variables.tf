@@ -1,7 +1,11 @@
 variable "aws_region" {
-  default = "us-east-1"
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "instance_type" {
-  default = "t2.micro"
+  description = "EC2 instance type"
+  type        = string
+  default     = "t2.micro"
 }

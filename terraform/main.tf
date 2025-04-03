@@ -1,20 +1,39 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region  # Use variable instead of hardcoding
+}
+
+# Data source to fetch the latest Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]  # AMIs owned by Amazon
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]  # Pattern for Amazon Linux 2 HVM, EBS-backed
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]  # Hardware Virtual Machine, compatible with t2.micro
+  }
+
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]  # EBS-backed instances are Free Tier-eligible
+  }
 }
 
 # Variable for key name which will be passed from the pipeline
 variable "key_name" {
   description = "Name of the SSH key pair to use"
   type        = string
-  default     = "default-key" # This default is just a fallback
+  default     = "default-key"  # This default is just a fallback
 }
 
 resource "aws_instance" "example" {
-  ami           = "ami-0c55b159cbfafe1f0"
-  instance_type = "t2.micro"
-  key_name      = var.key_name  # Add this line to use the SSH key
-
-  # Add a security group rule to allow SSH access
+  ami                    = data.aws_ami.amazon_linux.id  # Dynamic AMI ID
+  instance_type          = var.instance_type             # Use variable for Free Tier flexibility
+  key_name               = var.key_name                  # Passed from Jenkins pipeline
   vpc_security_group_ids = [aws_security_group.instance.id]
 
   tags = {
@@ -22,7 +41,7 @@ resource "aws_instance" "example" {
   }
 }
 
-# Security group to allow SSH access
+# Security group to allow SSH and application access
 resource "aws_security_group" "instance" {
   name        = "allow-app-access"
   description = "Allow SSH and application access"
@@ -54,7 +73,7 @@ resource "aws_security_group" "instance" {
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
+    protocol    = "-1"  # All protocols
     cidr_blocks = ["0.0.0.0/0"]
   }
 
