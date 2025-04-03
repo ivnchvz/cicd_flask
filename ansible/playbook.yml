@@ -4,7 +4,7 @@
   become: yes
   vars:
     COMPOSE_DIR: /app
-    COMPOSE_TIMEOUT: 1800  # 30 minutes in seconds
+    DOCKER_COMPOSE_VERSION: "v2.25.0"  # Explicit version for stability
 
   tasks:
     - name: Update yum cache and upgrade packages
@@ -18,13 +18,31 @@
         name: docker
         state: present
 
-    - name: Install Docker Compose
+    - name: Install dependencies for Docker Compose
+      yum:
+        name: 
+          - curl
+          - python3-pip
+        state: present
+
+    - name: Install Docker Compose (standalone binary)
       get_url:
-        url: https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64
+        url: "https://github.com/docker/compose/releases/download/{{ DOCKER_COMPOSE_VERSION }}/docker-compose-linux-x86_64"
         dest: /usr/local/bin/docker-compose
         mode: '0755'
         owner: root
         group: root
+        timeout: 30
+        validate_certs: yes
+
+    - name: Verify Docker Compose installation
+      command: /usr/local/bin/docker-compose --version
+      register: compose_version
+      changed_when: false
+
+    - name: Debug Docker Compose version
+      debug:
+        var: compose_version.stdout
 
     - name: Ensure Docker service is started and enabled
       service:
@@ -37,83 +55,97 @@
         path: "{{ COMPOSE_DIR }}"
         state: directory
         mode: '0755'
+        owner: ec2-user
+        group: ec2-user
 
-    - name: Copy frontend directory
+    - name: Copy frontend directory (with validation)
       copy:
         src: "{{ playbook_dir }}/../frontend/"
         dest: "{{ COMPOSE_DIR }}/frontend/"
         mode: preserve
+      register: frontend_copy
+      async: 2000  # For large directories
+      poll: 5
 
-    - name: Copy backend directory
+    - name: Copy backend directory (with validation)
       copy:
         src: "{{ playbook_dir }}/../backend/"
         dest: "{{ COMPOSE_DIR }}/backend/"
         mode: preserve
+      register: backend_copy
+      async: 2000  # For large directories
+      poll: 5
 
-    - name: Copy docker-compose.yml
+    - name: Copy docker-compose.yml (with validation)
       copy:
         src: "{{ playbook_dir }}/../docker-compose.yml"
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
         mode: '0644'
+      register: compose_file_copy
 
     - name: Validate docker-compose.yml syntax
-      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose config -q"
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose config -q"
+      when: compose_file_copy.changed
       register: compose_validation
       changed_when: false
 
-    - name: Debug compose validation
+    - name: Debug docker-compose.yml validation
       debug:
         var: compose_validation.stdout_lines
       when: compose_validation.rc != 0
 
-    - name: Start Docker Compose (foreground with logs)
-      shell: 
-        cmd: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose --verbose up 2>&1 | tee -a /var/log/docker-compose.log"
-      register: docker_compose_output
-      async: "{{ COMPOSE_TIMEOUT }}"
-      poll: 5
-      args:
-        executable: /bin/bash
+    - name: Start containers with Docker Compose
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose up -d --build"
+      async: 1800  # 30 minute timeout
+      poll: 0  # Fire and forget (use with async to prevent timeout)
+      register: docker_compose_up
 
-    - name: Stream logs to Jenkins console
+    - name: Show Docker Compose output
       debug:
-        var: docker_compose_output.stdout_lines
-      when: docker_compose_output.stdout_lines is defined
+        var: docker_compose_up.stdout_lines
 
-    - name: Check container status after deployment
-      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect -f '{{ '{{.State.Status}}' }}'"
+    - name: Check container status
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect - f '{{.State.Status}}'"
       register: container_status
       until: container_status.stdout is search("running")
       retries: 12  # 1 minute (5s x 12)
       delay: 5
       changed_when: false
 
-    - name: Show Docker Compose logs if containers aren't running
-      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose logs"
-      register: failure_logs
-      when: container_status.failed
-      changed_when: false
-
-    - name: Debug container status
+    - name: Show container status
       debug:
         var: container_status.stdout
-      when: container_status.failed
 
-    - name: Debug Docker system
-      shell: |
-        echo "=== Docker System Info ==="
-        docker info
-        echo "=== Running Containers ==="
-        docker ps -a
-        echo "=== Disk Space ==="
-        df -h
-        echo "=== Memory Usage ==="
-        free -m
-      register: system_info
-      when: container_status.failed
+    - name: Get Docker Compose logs if containers not running
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose logs"
+      when: container_status.rc != 0 or not container_status.stdout is search("running")
+      register: docker_logs
       changed_when: false
 
-    - name: Print system info on failure
+    - name: Show Docker Compose logs
       debug:
-        var: system_info.stdout_lines
-      when: container_status.failed
+        var: docker_logs.stdout_lines
+      when: container_status.rc != 0 or not container_status.stdout is search("running")
+
+    - name: Check system resources
+      shell: |
+        echo "### MEMORY ###"
+        free -m
+        echo "### DISK ###"
+        df -h
+        echo "### PROCESSES ###"
+        ps auxf
+      when: container_status.rc != 0 or not container_status.stdout is search("running")
+      register: system_resources
+      changed_when: false
+
+    - name: Show system resources
+      debug:
+        var: system_resources.stdout_lines
+      when: container_status.rc != 0 or not container_status.stdout is search("running")
+
+  handlers:
+    - name: Restart docker
+      service:
+        name: docker
+        state: restarted
