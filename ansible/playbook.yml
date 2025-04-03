@@ -57,11 +57,11 @@
       args:
         chdir: /app
       async: 600  # Allow 10 minutes for the command to run in the background
-      poll: 0     # Don’t wait for completion; we’ll poll manually
+      poll: 0     # Don't wait for completion; we'll poll manually
       register: docker_compose_start
 
     - name: Check docker compose container status
-      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format "'{{.State.Status}}'" || echo "no containers"
+      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format {% raw %}'{{.State.Status}}'{% endraw %} || echo "no containers"
       args:
         chdir: /app
       register: container_status
