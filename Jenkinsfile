@@ -40,10 +40,11 @@ pipeline {
                             # Write IP to host workspace
                             terraform output -raw instance_ip > ${GLOBAL_WORKSPACE}/instance_ip.txt
                             
-                            echo "=== TERRAFORM OUTPUT VALIDATION ==="
-                            echo "Reported IP:"
+                            echo "=== TERRAFORM VALIDATION ==="
+                            echo "Instance IP:"
                             cat ${GLOBAL_WORKSPACE}/instance_ip.txt
-                            echo "=== END VALIDATION ==="
+                            echo "Workspace Contents:"
+                            ls -la ${GLOBAL_WORKSPACE}/
                         """
                     }
                 }
@@ -56,34 +57,19 @@ pipeline {
                     script {
                         def ec2_ip = sh(script: "cat ${GLOBAL_WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh """
-                            echo "=== CURRENT WORKSPACE CONTENTS ==="
-                            ls -la ${GLOBAL_WORKSPACE}/
-                            echo "=== IP FILE CONTENTS ==="
-                            cat ${GLOBAL_WORKSPACE}/instance_ip.txt
-                            echo "================================"
-
-                            echo "Verifying EC2 instance with IP: ${ec2_ip}..."
-                            aws ec2 describe-instances --region ${AWS_REGION} \
-                              --filters Name=ip-address,Values=${ec2_ip} \
-                              --query 'Reservations[*].Instances[*].[InstanceId,State.Name]' \
-                              --output table
-
-                            echo "Testing SSH connectivity..."
+                            echo "=== SSH VERIFICATION ==="
+                            echo "Testing connection to ${ec2_ip}"
                             timeout 300 bash -c '
-                                attempts=0
-                                until ssh -o ConnectTimeout=10 \
-                                  -o StrictHostKeyChecking=no \
-                                  -i ${KEY_PATH} \
-                                  ec2-user@${ec2_ip} "echo SSH_SUCCESS"; 
-                                do
-                                    sleep 10;
-                                    attempts=\$((attempts+1));
-                                    echo "Attempt \${attempts}/30: Waiting for SSH...";
-                                    if [ \$attempts -ge 30 ]; then
-                                        echo "SSH connection failed after 30 attempts";
-                                        exit 1;
-                                    fi;
-                                done'
+                                for i in {1..30}; do
+                                    ssh -o ConnectTimeout=10 \
+                                      -o StrictHostKeyChecking=no \
+                                      -i ${KEY_PATH} \
+                                      ec2-user@${ec2_ip} "echo SSH_SUCCESS" && exit 0
+                                    sleep 10
+                                    echo "Attempt \$i/30: Waiting for SSH..."
+                                done
+                                echo "SSH failed after 30 attempts"
+                                exit 1'
                         """
                     }
                 }
@@ -102,15 +88,14 @@ pipeline {
                     script {
                         def ec2_ip = sh(script: "cat /workspace/instance_ip.txt", returnStdout: true).trim()
                         sh """
-                            echo "=== ANSIBLE DEPLOYMENT DEBUG ==="
-                            echo "Using IP: ${ec2_ip}"
-                            echo "SSH key path: /workspace/keys/ec2_key"
+                            echo "=== ANSIBLE PREFLIGHT CHECK ==="
+                            echo "IP Address: ${ec2_ip}"
+                            echo "SSH Key Path: /workspace/keys/ec2_key"
                             ls -la /workspace/keys/ec2_key
-                            echo "================================"
-
                             chmod 600 /workspace/keys/ec2_key
-                            cd /workspace/ansible
                             
+                            echo "=== ANSIBLE EXECUTION ==="
+                            cd /workspace/ansible
                             ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -vvv \
                               -i '${ec2_ip},' \
                               -u ec2-user \
@@ -127,7 +112,7 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
-                        echo "=== CLEANUP PHASE ==="
+                        echo "=== CLEANUP ==="
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || true
                         rm -fv ${KEY_PATH} ${KEY_PATH}.pub ${WORKSPACE}/instance_ip.txt
                     """
@@ -152,7 +137,6 @@ pipeline {
                           --output text)
                         
                         if [ -n "\${INSTANCE_IDS}" ]; then
-                            echo "Terminating instances: \${INSTANCE_IDS}"
                             aws ec2 terminate-instances --instance-ids \${INSTANCE_IDS} --region ${AWS_REGION} || true
                         fi
                     """
