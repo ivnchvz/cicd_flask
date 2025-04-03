@@ -52,13 +52,27 @@
         dest: /app/docker-compose.yml
         mode: '0644'
 
-    - name: Run docker compose with timeout
-      shell: timeout 300 /usr/local/bin/docker-compose up -d  # Use shell-level timeout command
+    - name: Start docker compose in background
+      shell: /usr/local/bin/docker-compose up -d &
       args:
         chdir: /app
-      register: docker_compose_output
+      async: 600  # Allow 10 minutes for the command to run in the background
+      poll: 0     # Don’t wait for completion; we’ll poll manually
+      register: docker_compose_start
 
-    - name: Debug docker compose output
+    - name: Check docker compose container status
+      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format '{{.State.Status}}' || echo "no containers"
+      args:
+        chdir: /app
+      register: container_status
+      until: >
+        container_status.stdout is search("running") and
+        not container_status.stdout is search("created|exited|no containers")
+      retries: 20  # Check every 30s for up to 10 minutes (20 * 30s = 600s)
+      delay: 30    # Wait 30 seconds between checks
+      failed_when: container_status.rc != 0 or container_status.stdout is search("exited|no containers")
+
+    - name: Debug container status on failure
       debug:
-        var: docker_compose_output
-      when: docker_compose_output.failed or docker_compose_output.rc != 0
+        var: container_status
+      when: container_status.failed
