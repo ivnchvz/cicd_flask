@@ -52,18 +52,38 @@
         dest: /app/docker-compose.yml
         mode: '0644'
 
+    - name: Display docker-compose.yml content for debugging
+      command: cat /app/docker-compose.yml
+      register: compose_file_content
+      changed_when: false
+
+    - name: Print docker-compose.yml content
+      debug:
+        var: compose_file_content.stdout_lines
+
     - name: Start docker compose in background
-      shell: /usr/local/bin/docker-compose up -d &
-      args:
-        chdir: /app
-      async: 600  # Allow 10 minutes for the command to run in the background
-      poll: 0     # Don't wait for completion; we'll poll manually
+      shell: cd /app && /usr/local/bin/docker-compose up -d
       register: docker_compose_start
 
+    - name: Debug docker-compose up output
+      debug:
+        var: docker_compose_start
+
+    - name: List all Docker containers
+      shell: docker ps -a
+      register: docker_ps
+      changed_when: false
+
+    - name: Show all Docker containers
+      debug:
+        var: docker_ps.stdout_lines
+
+    - name: Pause for initial container startup
+      pause:
+        seconds: 10
+
     - name: Check docker compose container status
-      shell: /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format {% raw %}'{{.State.Status}}'{% endraw %} || echo "no containers"
-      args:
-        chdir: /app
+      shell: cd /app && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format {% raw %}'{{.State.Status}}'{% endraw %} || echo "no containers"
       register: container_status
       until: >
         container_status.stdout is search("running") and
@@ -75,4 +95,36 @@
     - name: Debug container status on failure
       debug:
         var: container_status
+      when: container_status.failed
+
+    - name: Show docker-compose logs on failure
+      shell: cd /app && /usr/local/bin/docker-compose logs
+      register: docker_logs
+      when: container_status.failed
+
+    - name: Print docker-compose logs
+      debug:
+        var: docker_logs.stdout_lines
+      when: container_status.failed
+
+    - name: Check disk space
+      shell: df -h
+      register: disk_space
+      changed_when: false
+      when: container_status.failed
+
+    - name: Show disk space
+      debug:
+        var: disk_space.stdout_lines
+      when: container_status.failed
+
+    - name: Check system memory
+      shell: free -m
+      register: system_memory
+      changed_when: false
+      when: container_status.failed
+
+    - name: Show system memory
+      debug:
+        var: system_memory.stdout_lines
       when: container_status.failed

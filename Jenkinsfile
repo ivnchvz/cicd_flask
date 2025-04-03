@@ -30,11 +30,52 @@ pipeline {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     dir('terraform') {
                         sh """
+                            echo "Current directory:"
                             pwd
+                            
+                            echo "Directory contents:"
                             ls -la
+                            
+                            echo "Initializing Terraform..."
                             terraform init
-                            terraform apply -auto-approve -var=\"key_name=${KEY_NAME}\"
+                            
+                            echo "Planning Terraform changes..."
+                            terraform plan -var="key_name=${KEY_NAME}" -out=tfplan
+                            
+                            echo "Applying Terraform changes..."
+                            terraform apply -auto-approve tfplan || (echo "Terraform apply failed" && exit 1)
+                            
+                            echo "Getting instance IP..."
                             terraform output -raw instance_ip > ${WORKSPACE}/instance_ip.txt
+                            
+                            echo "Instance IP:"
+                            cat ${WORKSPACE}/instance_ip.txt
+                            
+                            echo "Terraform state list:"
+                            terraform state list
+                            
+                            echo "EC2 instance details from Terraform:"
+                            terraform state show module.ec2_instance.aws_instance.this[0] || echo "Instance not found in state"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Verify EC2 Instance') {
+            steps {
+                withCredentials([aws(credentialsId: 'aws-creds')]) {
+                    script {
+                        def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
+                        sh """
+                            echo "Verifying EC2 instance..."
+                            
+                            # Check if EC2 instance is running
+                            aws ec2 describe-instances --region ${AWS_REGION} --filters "Name=ip-address,Values=${ec2_ip}" --query 'Reservations[*].Instances[*].[InstanceId,State.Name]' --output table
+                            
+                            # Wait for instance to be accessible via SSH
+                            echo "Waiting for SSH access..."
+                            timeout 180 bash -c 'until nc -z ${ec2_ip} 22; do sleep 5; echo "Waiting for SSH..."; done' || (echo "Failed to connect to instance via SSH" && exit 1)
                         """
                     }
                 }
@@ -57,10 +98,20 @@ pipeline {
                             apk add --no-cache openssh-client
                             ls -la
                             chmod 600 ${KEY_PATH}
-                            pwd
+                            
+                            echo "Running Ansible playbook..."
                             cd ansible
-                            ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
+                            
+                            # Set higher verbosity for debugging
+                            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -vvv -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
+                            if [ \$? -ne 0 ]; then
+                                echo "Ansible playbook failed, collecting debug information..."
+                                ANSIBLE_HOST_KEY_CHECKING=False ansible -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' -m shell -a "docker ps -a" all || echo "Cannot connect to get Docker status"
+                                ANSIBLE_HOST_KEY_CHECKING=False ansible -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' -m shell -a "ls -la /app" all || echo "Cannot check app directory"
+                                exit 1
+                            fi
                         """
+                        
                         echo "========================================"
                         echo "Application deployed successfully!"
                         echo "Frontend endpoint: http://${ec2_ip}:3000"
@@ -75,10 +126,45 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
-                        aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION}
+                        echo "Cleaning up resources..."
+                        
+                        # Try to delete key pair, but don't fail if it doesn't exist
+                        aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || echo "Warning: Could not delete key pair. Check IAM permissions."
+                        
+                        echo "Removing local files..."
                         rm -f ${KEY_PATH} ${KEY_PATH}.pub
                         rm -f ${WORKSPACE}/instance_ip.txt
                     """
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo "Pipeline completed with status: ${currentBuild.result}"
+        }
+        failure {
+            script {
+                echo "Pipeline failed. Attempting to clean up any resources that might have been created."
+                withCredentials([aws(credentialsId: 'aws-creds')]) {
+                    try {
+                        // Try to identify if an instance was created using the key name
+                        sh """
+                            echo "Looking for instances using key ${KEY_NAME}..."
+                            INSTANCE_IDS=\$(aws ec2 describe-instances --region ${AWS_REGION} --filters "Name=key-name,Values=${KEY_NAME}" --query 'Reservations[*].Instances[*].InstanceId' --output text)
+                            if [ ! -z "\$INSTANCE_IDS" ]; then
+                                echo "Found instances: \$INSTANCE_IDS. Attempting to terminate..."
+                                aws ec2 terminate-instances --instance-ids \$INSTANCE_IDS --region ${AWS_REGION} || echo "Could not terminate instances: \$INSTANCE_IDS"
+                            else
+                                echo "No instances found with key ${KEY_NAME}"
+                            fi
+                            
+                            # Try to delete the key pair
+                            aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || echo "Could not delete key pair ${KEY_NAME}"
+                        """
+                    } catch (Exception e) {
+                        echo "Error during cleanup: ${e.message}"
+                    }
                 }
             }
         }
