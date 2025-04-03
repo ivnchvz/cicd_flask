@@ -54,8 +54,8 @@ pipeline {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh "sleep 45"  // Wait for instance to be ready
                         sh """
+                            ls -la
                             chmod 600 ${KEY_PATH}
-                            cd /workspace/ansible
                             ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
                         echo "========================================"
