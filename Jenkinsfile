@@ -43,7 +43,7 @@ pipeline {
             agent {
                 docker {
                     image 'cytopia/ansible:latest'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace/ansible --entrypoint=""'
+                    args '-u 0 -v ${WORKSPACE}:/workspace --entrypoint=""'
                 }
             }
             steps {
@@ -53,6 +53,7 @@ pipeline {
                         sh "sleep 45"
                         sh """
                             chmod 600 /workspace/keys/ec2_key
+                            cd /workspace/ansible
                             ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key /workspace/keys/ec2_key --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
                         echo "========================================"
