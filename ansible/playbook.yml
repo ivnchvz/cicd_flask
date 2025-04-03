@@ -8,13 +8,11 @@
         name: '*'
         state: latest
         update_cache: yes
-        use_backend: yum
 
     - name: Install Docker
       yum:
         name: docker
         state: present
-        use_backend: yum
 
     - name: Install Docker Compose
       get_url:
@@ -55,6 +53,6 @@
         mode: '0644'
 
     - name: Run docker compose
-      shell: docker-compose up -d
+      shell: /usr/local/bin/docker-compose up -d
       args:
         chdir: /app
