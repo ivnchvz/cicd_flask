@@ -56,6 +56,8 @@ pipeline {
                         sh """
                             ls -la
                             chmod 600 ${KEY_PATH}
+                            pwd
+                            cd ansible
                             ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
                         echo "========================================"
