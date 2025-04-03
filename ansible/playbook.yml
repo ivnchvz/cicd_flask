@@ -2,6 +2,10 @@
 - name: Configure EC2 instance
   hosts: all
   become: yes
+  vars:
+    COMPOSE_DIR: /app
+    COMPOSE_TIMEOUT: 1800  # 30 minutes in seconds
+
   tasks:
     - name: Update yum cache and upgrade packages
       yum:
@@ -30,109 +34,86 @@
 
     - name: Create app directory
       file:
-        path: /app
+        path: "{{ COMPOSE_DIR }}"
         state: directory
         mode: '0755'
 
     - name: Copy frontend directory
       copy:
         src: "{{ playbook_dir }}/../frontend/"
-        dest: /app/frontend/
+        dest: "{{ COMPOSE_DIR }}/frontend/"
         mode: preserve
 
     - name: Copy backend directory
       copy:
         src: "{{ playbook_dir }}/../backend/"
-        dest: /app/backend/
+        dest: "{{ COMPOSE_DIR }}/backend/"
         mode: preserve
 
     - name: Copy docker-compose.yml
       copy:
         src: "{{ playbook_dir }}/../docker-compose.yml"
-        dest: /app/docker-compose.yml
+        dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
         mode: '0644'
 
-    - name: Display docker-compose.yml content for debugging
-      command: cat /app/docker-compose.yml
-      register: compose_file_content
+    - name: Validate docker-compose.yml syntax
+      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose config -q"
+      register: compose_validation
       changed_when: false
 
-    - name: Print docker-compose.yml content
+    - name: Debug compose validation
       debug:
-        var: compose_file_content.stdout_lines
+        var: compose_validation.stdout_lines
+      when: compose_validation.rc != 0
 
-    # Modified Docker Compose section with verbose logging
-    - name: Start docker compose in verbose mode
-      shell: cd /app && /usr/local/bin/docker-compose --verbose up -d
-      register: docker_compose_start
+    - name: Start Docker Compose (foreground with logs)
+      shell: 
+        cmd: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose --verbose up 2>&1 | tee -a /var/log/docker-compose.log"
+      register: docker_compose_output
+      async: "{{ COMPOSE_TIMEOUT }}"
+      poll: 5
+      args:
+        executable: /bin/bash
 
-    - name: Debug docker-compose up output
+    - name: Stream logs to Jenkins console
       debug:
-        var: docker_compose_start.stdout_lines
+        var: docker_compose_output.stdout_lines
+      when: docker_compose_output.stdout_lines is defined
 
-    - name: Stream real-time Docker logs
-      shell: cd /app && /usr/local/bin/docker-compose logs -f
-      register: docker_logs
-      async: 180  # Allow 3 minutes for log streaming
-      poll: 0
-      changed_when: false
-
-    - name: Pause for initial log capture
-      pause:
-        seconds: 25
-
-    - name: List all Docker containers
-      shell: docker ps -a
-      register: docker_ps
-      changed_when: false
-
-    - name: Show all Docker containers
-      debug:
-        var: docker_ps.stdout_lines
-
-    - name: Check docker compose container status
-      shell: cd /app && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect --format {% raw %}'{{.State.Status}}'{% endraw %} || echo "no containers"
+    - name: Check container status after deployment
+      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose ps -q | xargs -r docker inspect -f '{{ '{{.State.Status}}' }}'"
       register: container_status
-      until: >
-        container_status.stdout is search("running") and
-        not container_status.stdout is search("created|exited|no containers")
-      retries: 20
-      delay: 30
-      failed_when: container_status.rc != 0 or container_status.stdout is search("exited|no containers")
-
-    - name: Debug container status on failure
-      debug:
-        var: container_status
-      when: container_status.failed
-
-    - name: Show docker-compose logs on failure
-      shell: cd /app && /usr/local/bin/docker-compose logs
-      register: docker_logs
-      when: container_status.failed
-
-    - name: Print docker-compose logs
-      debug:
-        var: docker_logs.stdout_lines
-      when: container_status.failed
-
-    - name: Check disk space
-      shell: df -h
-      register: disk_space
+      until: container_status.stdout is search("running")
+      retries: 12  # 1 minute (5s x 12)
+      delay: 5
       changed_when: false
-      when: container_status.failed
 
-    - name: Show disk space
-      debug:
-        var: disk_space.stdout_lines
+    - name: Show Docker Compose logs if containers aren't running
+      shell: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose logs"
+      register: failure_logs
       when: container_status.failed
-
-    - name: Check system memory
-      shell: free -m
-      register: system_memory
       changed_when: false
+
+    - name: Debug container status
+      debug:
+        var: container_status.stdout
       when: container_status.failed
 
-    - name: Show system memory
+    - name: Debug Docker system
+      shell: |
+        echo "=== Docker System Info ==="
+        docker info
+        echo "=== Running Containers ==="
+        docker ps -a
+        echo "=== Disk Space ==="
+        df -h
+        echo "=== Memory Usage ==="
+        free -m
+      register: system_info
+      when: container_status.failed
+      changed_when: false
+
+    - name: Print system info on failure
       debug:
-        var: system_memory.stdout_lines
+        var: system_info.stdout_lines
       when: container_status.failed
