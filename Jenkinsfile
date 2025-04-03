@@ -3,16 +3,17 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         KEY_NAME = "jenkins-deploy-key-${BUILD_NUMBER}"
+        KEY_PATH = "${WORKSPACE}/keys/ec2_key"  // Define a consistent key path
     }
     stages {
         stage('Generate SSH Key') {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh '''
-                        rm -f ${WORKSPACE}/keys/ec2_key ${WORKSPACE}/keys/ec2_key.pub
+                        rm -f ${KEY_PATH} ${KEY_PATH}.pub
                         mkdir -p ${WORKSPACE}/keys
-                        ssh-keygen -t rsa -b 2048 -f ${WORKSPACE}/keys/ec2_key -N ""
-                        aws ec2 import-key-pair --key-name ${KEY_NAME} --public-key-material fileb://${WORKSPACE}/keys/ec2_key.pub --region ${AWS_REGION}
+                        ssh-keygen -t rsa -b 2048 -f ${KEY_PATH} -N ""
+                        aws ec2 import-key-pair --key-name ${KEY_NAME} --public-key-material fileb://${KEY_PATH}.pub --region ${AWS_REGION}
                     '''
                 }
             }
@@ -32,8 +33,7 @@ pipeline {
                             pwd
                             ls -la
                             terraform init
-                            terraform apply -auto-approve -var="key_name=${KEY_NAME}"
-                            # Save the IP address to a file that can be read in the next stage
+                            terraform apply -auto-approve -var=\"key_name=${KEY_NAME}\"
                             terraform output -raw instance_ip > ${WORKSPACE}/instance_ip.txt
                         """
                     }
@@ -51,13 +51,12 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     script {
-                        // Read the IP from the file saved in the previous stage
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh "sleep 45"  // Wait for instance to be ready
                         sh """
-                            chmod 600 /workspace/keys/ec2_key
+                            chmod 600 ${KEY_PATH}
                             cd /workspace/ansible
-                            ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key /workspace/keys/ec2_key --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
+                            ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
                         """
                         echo "========================================"
                         echo "Application deployed successfully!"
@@ -74,7 +73,7 @@ pipeline {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION}
-                        rm -f ${WORKSPACE}/keys/ec2_key ${WORKSPACE}/keys/ec2_key.pub
+                        rm -f ${KEY_PATH} ${KEY_PATH}.pub
                         rm -f ${WORKSPACE}/instance_ip.txt
                     """
                 }
