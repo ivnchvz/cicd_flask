@@ -26,7 +26,7 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:latest'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -v /var/run/docker.sock:/var/run/docker.sock --entrypoint=""'
+                    args '-u 0 -v ${GLOBAL_WORKSPACE}:/workspace -v /var/run/docker.sock:/var/run/docker.sock --entrypoint=""'
                 }
             }
             steps {
@@ -37,14 +37,8 @@ pipeline {
                             terraform plan -var="key_name=${KEY_NAME}" -out=tfplan
                             terraform apply -auto-approve tfplan
                             
-                            # Write IP to host workspace
-                            terraform output -raw instance_ip > ${GLOBAL_WORKSPACE}/instance_ip.txt
-                            
-                            echo "=== TERRAFORM VALIDATION ==="
-                            echo "Instance IP:"
-                            cat ${GLOBAL_WORKSPACE}/instance_ip.txt
-                            echo "Workspace Contents:"
-                            ls -la ${GLOBAL_WORKSPACE}/
+                            # Write IP to workspace root
+                            terraform output -raw instance_ip > /workspace/instance_ip.txt
                         """
                     }
                 }
@@ -57,8 +51,6 @@ pipeline {
                     script {
                         def ec2_ip = sh(script: "cat ${GLOBAL_WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh """
-                            echo "=== SSH VERIFICATION ==="
-                            echo "Testing connection to ${ec2_ip}"
                             timeout 300 bash -c '
                                 for i in {1..30}; do
                                     ssh -o ConnectTimeout=10 \
@@ -80,7 +72,7 @@ pipeline {
             agent {
                 docker {
                     image 'cytopia/ansible:2.9-tools'
-                    args '-u 0 -v ${WORKSPACE}:/workspace -w /workspace --entrypoint=""'
+                    args '-u 0 -v ${GLOBAL_WORKSPACE}:/workspace -w /workspace --entrypoint=""'
                 }
             }
             steps {
@@ -94,7 +86,6 @@ pipeline {
                             ls -la /workspace/keys/ec2_key
                             chmod 600 /workspace/keys/ec2_key
                             
-                            echo "=== ANSIBLE EXECUTION ==="
                             cd /workspace/ansible
                             ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -vvv \
                               -i '${ec2_ip},' \
@@ -112,9 +103,8 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
-                        echo "=== CLEANUP ==="
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION} || true
-                        rm -fv ${KEY_PATH} ${KEY_PATH}.pub ${WORKSPACE}/instance_ip.txt
+                        rm -fv ${KEY_PATH} ${KEY_PATH}.pub ${GLOBAL_WORKSPACE}/instance_ip.txt
                     """
                 }
             }
@@ -123,13 +113,12 @@ pipeline {
     post {
         always {
             echo "Pipeline Status: ${currentBuild.result}"
-            sh "rm -fv ${WORKSPACE}/instance_ip.txt || true"
+            sh "rm -fv ${GLOBAL_WORKSPACE}/instance_ip.txt || true"
         }
         failure {
             script {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     sh """
-                        echo "=== EMERGENCY CLEANUP ==="
                         INSTANCE_IDS=\$(aws ec2 describe-instances \
                           --region ${AWS_REGION} \
                           --filters Name=key-name,Values=${KEY_NAME} \
