@@ -47,7 +47,7 @@ pipeline {
                             terraform apply -auto-approve tfplan || (echo "Terraform apply failed" && exit 1)
                             
                             echo "Getting instance IP..."
-                            terraform output -raw instance_ip > /workspace/instance_ip.txt
+                            terraform output -raw instance_ip >> /workspace/instance_ip.txt
                             
                             echo "Instance IP:"
                             cat /workspace/instance_ip.txt
