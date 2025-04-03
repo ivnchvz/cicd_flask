@@ -52,7 +52,7 @@ pipeline {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     script {
                         // Read the IP from the file saved in the previous stage
-                        def ec2_ip = sh(script: "cat /workspace/instance_ip.txt", returnStdout: true).trim()
+                        def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh "sleep 45"  // Wait for instance to be ready
                         sh """
                             chmod 600 /workspace/keys/ec2_key
