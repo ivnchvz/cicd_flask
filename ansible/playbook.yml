@@ -52,7 +52,14 @@
         dest: /app/docker-compose.yml
         mode: '0644'
 
-    - name: Run docker compose
+    - name: Run docker compose with timeout
       shell: /usr/local/bin/docker-compose up -d
       args:
         chdir: /app
+      timeout: 300  # 5-minute timeout to prevent indefinite hangs
+      register: docker_compose_output
+
+    - name: Debug docker compose output
+      debug:
+        var: docker_compose_output
+      when: docker_compose_output.failed or docker_compose_output.rc != 0
