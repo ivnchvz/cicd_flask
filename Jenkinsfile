@@ -49,7 +49,8 @@ pipeline {
             steps {
                 withCredentials([aws(credentialsId: 'aws-creds')]) {
                     script {
-                        def ec2_ip = sh(script: "cd /workspace/terraform && terraform output -raw instance_ip", returnStdout: true).trim()
+                        // Using the full workspace path to ensure we're in the correct directory
+                        def ec2_ip = sh(script: "terraform -chdir=/workspace/terraform output -raw instance_ip", returnStdout: true).trim()
                         sh "sleep 45"
                         sh """
                             chmod 600 /workspace/keys/ec2_key
