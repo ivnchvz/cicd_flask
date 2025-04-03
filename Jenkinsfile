@@ -119,6 +119,7 @@ pipeline {
                                 exit 1
                             fi
                         """
+                        echo "Ansible target IP is: ${ec2_ip}"
                         
                         echo "========================================"
                         echo "Application deployed successfully!"
