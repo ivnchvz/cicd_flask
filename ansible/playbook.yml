@@ -8,11 +8,13 @@
         name: '*'
         state: latest
         update_cache: yes
+        use_backend: yum  # Explicitly use yum backend
 
     - name: Install Docker
       yum:
         name: docker
         state: present
+        use_backend: yum
 
     - name: Install Docker Compose
       get_url:
