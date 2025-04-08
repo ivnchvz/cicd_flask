@@ -36,6 +36,7 @@
       pip:
         name: docker
         state: present
+        extra_args: "--ignore-installed"  # Forces install, overriding distutils packages
 
     - name: Start Docker service
       service:
