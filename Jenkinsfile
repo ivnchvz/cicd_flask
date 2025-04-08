@@ -87,7 +87,7 @@ pipeline {
                         """
                         echo "========================================"
                         echo "Application deployed successfully!"
-                        echo "Frontend endpoint: http://${ec2_ip}:3000"
+                        echo "Frontend endpoint: http://${ec2_ip}"
                         echo "Backend endpoint: http://${ec2_ip}:5000"
                         echo "========================================"
                     }
