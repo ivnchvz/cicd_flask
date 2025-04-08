@@ -4,51 +4,50 @@
   become: yes
   vars:
     COMPOSE_DIR: /app
+    DOCKER_COMPOSE_VERSION: "v2.25.0"
 
   tasks:
     - name: Update yum cache
       yum:
         update_cache: yes
 
-    - name: Install required packages
+    - name: Install Docker
       yum:
-        name:
-          - docker
-          - curl
-          - python-pip
+        name: docker
         state: present
 
-    - name: Start and enable Docker service
+    - name: Install curl for Docker Compose
+      yum:
+        name: curl
+        state: present
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/{{ DOCKER_COMPOSE_VERSION }}/docker-compose-linux-x86_64"
+        dest: "/usr/local/bin/docker-compose"
+        mode: '0755'
+
+    - name: Start Docker service
       service:
         name: docker
         state: started
         enabled: yes
 
+    - name: Log into Docker Hub
+      command: docker login -u {{ docker_username }} -p {{ docker_password }}
+      no_log: true
+
     - name: Create app directory
       file:
         path: "{{ COMPOSE_DIR }}"
         state: directory
-        mode: '0755'
 
     - name: Copy docker-compose.yml
       copy:
         src: "{{ playbook_dir }}/../docker-compose.yml"
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
-        mode: '0644'
 
-    - name: Log into Docker Hub
-      shell: docker login -u {{ docker_username }} -p {{ docker_password }}
-      no_log: true
-      changed_when: false
-
-    # Skip Docker Compose installation and use Docker directly with compose subcommand
-    - name: Deploy with Docker directly
-      shell: |
-        cd {{ COMPOSE_DIR }}
-        docker compose up -d || docker-compose up -d
-      register: compose_result
-      changed_when: "'Creating' in compose_result.stdout or 'Starting' in compose_result.stdout"
-      
-    - name: Display deployment result
-      debug:
-        var: compose_result.stdout_lines
+    - name: Start containers
+      command: "/usr/local/bin/docker-compose up -d"
+      args:
+        chdir: "{{ COMPOSE_DIR }}"
