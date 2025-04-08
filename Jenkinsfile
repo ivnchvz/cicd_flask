@@ -3,7 +3,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         KEY_NAME = "jenkins-deploy-key-${BUILD_NUMBER}"
-        KEY_PATH = "${WORKSPACE}/keys/ec2_key"  // Define a consistent key path
+        KEY_PATH = "${WORKSPACE}/keys/ec2_key"
     }
     stages {
         stage('Generate SSH Key') {
@@ -14,6 +14,27 @@ pipeline {
                         mkdir -p ${WORKSPACE}/keys
                         ssh-keygen -t rsa -b 2048 -f ${KEY_PATH} -N ""
                         aws ec2 import-key-pair --key-name ${KEY_NAME} --public-key-material fileb://${KEY_PATH}.pub --region ${AWS_REGION}
+                    '''
+                }
+            }
+        }
+
+        stage('Build and Push Docker Images') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        # Log into Docker Hub
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+                        # Build and push frontend image
+                        cd frontend
+                        docker build -t wasserstiefel/iss-tracker-frontend:latest .
+                        docker push wasserstiefel/iss-tracker-frontend:latest
+
+                        # Build and push backend image
+                        cd ../backend
+                        docker build -t wasserstiefel/iss-tracker-backend:latest .
+                        docker push wasserstiefel/iss-tracker-backend:latest
                     '''
                 }
             }
@@ -55,7 +76,7 @@ pipeline {
                 ]) {
                     script {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
-                        sh "sleep 45"  // Wait for instance to be ready
+                        sh "sleep 45"
                         sh """
                             apk add --no-cache openssh-client
                             ls -la
@@ -67,7 +88,7 @@ pipeline {
                         echo "========================================"
                         echo "Application deployed successfully!"
                         echo "Frontend endpoint: http://${ec2_ip}:3000"
-                        echo "Backend endpoint: http://${ec2_ip}:5000"  // Updated to match docker-compose.yml
+                        echo "Backend endpoint: http://${ec2_ip}:5000"
                         echo "========================================"
                     }
                 }
