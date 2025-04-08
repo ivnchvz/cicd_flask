@@ -26,11 +26,30 @@
         mode: '0755'
         force: yes
 
+    - name: Create Docker Compose v2 alias
+      file:
+        src: "/usr/local/bin/docker-compose"
+        dest: "/usr/local/bin/docker-compose-plugin"
+        state: link
+        force: yes
+
+    - name: Create symlink for Docker Compose v2 compatibility
+      file:
+        src: "/usr/local/bin/docker-compose"
+        dest: "/usr/libexec/docker/cli-plugins/docker-compose"
+        state: link
+        force: yes
+        
+    - name: Create /usr/libexec/docker/cli-plugins directory if it doesn't exist
+      file:
+        path: "/usr/libexec/docker/cli-plugins"
+        state: directory
+        mode: '0755'
+        
     - name: Install Python packages for Docker
       pip:
         name:
           - docker
-          - docker-compose
         state: present
         extra_args: "--ignore-installed"
 
@@ -57,13 +76,18 @@
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
         mode: '0644'
 
-    - name: Deploy with Docker Compose using command
-      command: 
-        cmd: docker-compose up -d
-        chdir: "{{ COMPOSE_DIR }}"
+    - name: Check Docker Compose version
+      command: docker-compose --version
+      register: compose_version
+      changed_when: false
+
+    - name: Display Docker Compose version
+      debug:
+        var: compose_version.stdout
+
+    # Use shell module instead of command to allow for pipes and redirection
+    - name: Deploy with Docker Compose using shell
+      shell:
+        cmd: cd {{ COMPOSE_DIR }} && docker-compose up -d
       register: compose_result
       changed_when: "'Creating' in compose_result.stdout or 'Starting' in compose_result.stdout"
-
-    - name: Display Docker Compose deployment status
-      debug:
-        var: compose_result.stdout_lines
