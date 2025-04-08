@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port Flask will run on
+# Expose the port
 EXPOSE 5000
 
-# Start the Flask application
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Start with Gunicorn and eventlet for WebSocket support
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:5000", "app:app"]

@@ -64,8 +64,8 @@ resource "aws_security_group" "instance" {
 
   ingress {
     description = "Backend access"
-    from_port   = 5001
-    to_port     = 5001
+    from_port   = 5000
+    to_port     = 5000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }

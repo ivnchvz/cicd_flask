@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Allow CORS for Docker and local testing
-CORS(app, resources={r"/*": {"origins": "*"}})  # Adjust for production
+CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 def fetch_iss_data():
@@ -55,13 +55,10 @@ def index():
     return render_template("index.html")
 
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(auth=None):
     logger.info("Client connected")
     socketio.start_background_task(background_thread)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     logger.info("Client disconnected")
-
-if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)  # Debug off for Docker

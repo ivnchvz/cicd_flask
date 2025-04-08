@@ -1,20 +1,16 @@
-version: "3.8"
-
 services:
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: wasserstiefel/iss-tracker-frontend:latest
     ports:
       - "3000:3000"
-    depends_on:
-      - backend
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:5000
+    depends_on:
+      - backend
+    restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: wasserstiefel/iss-tracker-backend:latest
     ports:
-      - "5001:5000"  # Map host port 5001 to container port 5000S
+      - "5000:5000"  
+    restart: unless-stopped

@@ -22,9 +22,11 @@ const Globe = dynamic<GlobeProps>(
   { ssr: false }
 );
 
-// Use localhost:5001 for host access during testing
-const socket = io("http://localhost:5001", {
+// Dynamically determine the backend URL based on the current host
+const backendUrl = `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:5000`;
+const socket = io(backendUrl, {
   transports: ["websocket", "polling"],
+  path: "/socket.io",
 });
 
 interface IssUpdateData {
@@ -47,14 +49,14 @@ export default function Home() {
 
   useEffect(() => {
     socket.on("connect", () => {
-      console.log("Connected to backend at http://localhost:5001");
+      console.log(`Connected to backend at ${backendUrl}`);
     });
 
     socket.on("iss_update", (data: IssUpdateData) => {
       console.log("Received ISS update:", data);
       if (data && !data.error) {
         setIssPosition({
-          latitude: Number(data.latitude), // Ensure number type
+          latitude: Number(data.latitude),
           longitude: Number(data.longitude),
           countryCode: data.country_code || "N/A",
         });

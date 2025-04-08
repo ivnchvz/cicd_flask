@@ -49,7 +49,10 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([aws(credentialsId: 'aws-creds')]) {
+                withCredentials([
+                    aws(credentialsId: 'aws-creds'),
+                    usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')
+                ]) {
                     script {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
                         sh "sleep 45"  // Wait for instance to be ready
@@ -59,12 +62,12 @@ pipeline {
                             chmod 600 ${KEY_PATH}
                             pwd
                             cd ansible
-                            ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' playbook.yml
+                            ansible-playbook -i ${ec2_ip}, -u ec2-user --private-key ${KEY_PATH} --ssh-common-args='-o StrictHostKeyChecking=no' --extra-vars "docker_username=${DOCKER_USERNAME} docker_password=${DOCKER_PASSWORD}" playbook.yml
                         """
                         echo "========================================"
                         echo "Application deployed successfully!"
                         echo "Frontend endpoint: http://${ec2_ip}:3000"
-                        echo "Backend endpoint: http://${ec2_ip}:5001"
+                        echo "Backend endpoint: http://${ec2_ip}:5000"  // Updated to match docker-compose.yml
                         echo "========================================"
                     }
                 }

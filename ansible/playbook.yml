@@ -1,116 +1,51 @@
 ---
 - name: Configure EC2 instance
   hosts: all
-  become: yes
+  become: true
   vars:
     COMPOSE_DIR: /app
     DOCKER_COMPOSE_VERSION: "v2.25.0"
 
   tasks:
-    - name: Update yum cache and upgrade packages
+    - name: Update yum cache
       yum:
-        name: '*'
-        state: latest
         update_cache: yes
-
-    # Added Docker group management
-    - name: Create docker group
-      group:
-        name: docker
-        state: present
-
-    - name: Add ec2-user to docker group
-      user:
-        name: ec2-user
-        groups: docker
-        append: yes
 
     - name: Install Docker
       yum:
         name: docker
         state: present
-      notify: Restart docker
 
-    # Added symlink for docker-compose
-    - name: Create docker-compose symlink
-      file:
-        src: /usr/local/bin/docker-compose
-        dest: /usr/bin/docker-compose
-        state: link
-        force: yes
-
-    - name: Install dependencies for Docker Compose
+    - name: Install curl for Docker Compose
       yum:
-        name: 
-          - curl
-          - python3-pip
+        name: curl
         state: present
 
-    - name: Install Docker Compose (standalone binary)
+    - name: Install Docker Compose
       get_url:
         url: "https://github.com/docker/compose/releases/download/{{ DOCKER_COMPOSE_VERSION }}/docker-compose-linux-x86_64"
         dest: /usr/local/bin/docker-compose
         mode: '0755'
-        owner: root
-        group: root
-        timeout: 30
-        validate_certs: yes
 
-    - name: Verify Docker Compose installation
-      command: /usr/local/bin/docker-compose --version
-      register: compose_version
-      changed_when: false
-
-    - name: Debug Docker Compose version
-      debug:
-        var: compose_version.stdout
-
-    - name: Ensure Docker service is started and enabled
+    - name: Start Docker service
       service:
         name: docker
         state: started
         enabled: yes
 
-    # Modified docker-compose commands to use full path
+    - name: Log into Docker Hub
+      command: docker login -u {{ docker_username }} -p {{ docker_password }}
+      no_log: true
+
     - name: Create app directory
       file:
         path: "{{ COMPOSE_DIR }}"
         state: directory
-        mode: '0755'
-        owner: ec2-user
-        group: ec2-user
-
-    - name: Copy frontend directory
-      copy:
-        src: "{{ playbook_dir }}/../frontend/"
-        dest: "{{ COMPOSE_DIR }}/frontend/"
-        mode: preserve
-
-    - name: Copy backend directory
-      copy:
-        src: "{{ playbook_dir }}/../backend/"
-        dest: "{{ COMPOSE_DIR }}/backend/"
-        mode: preserve
 
     - name: Copy docker-compose.yml
       copy:
         src: "{{ playbook_dir }}/../docker-compose.yml"
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
-        mode: '0644'
 
-    - name: Validate docker-compose.yml syntax
-      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose config -q"
-      register: compose_validation
-      changed_when: false
-
-    - name: Start containers with Docker Compose
-      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose up -d --build"
-      async: 1800
-      poll: 0
-      register: docker_compose_up
-
-  handlers:
-    - name: Restart docker
-      service:
-        name: docker
-        state: restarted
+    - name: Start containers
+      command: "cd {{ COMPOSE_DIR }} && /usr/local/bin/docker-compose up -d"
