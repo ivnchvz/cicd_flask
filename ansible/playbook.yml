@@ -57,13 +57,13 @@
         dest: "{{ COMPOSE_DIR }}/docker-compose.yml"
         mode: '0644'
 
-    - name: Deploy with Docker Compose
-      community.docker.docker_compose:
-        project_src: "{{ COMPOSE_DIR }}"
-        state: present
+    - name: Deploy with Docker Compose using command
+      command: 
+        cmd: docker-compose up -d
+        chdir: "{{ COMPOSE_DIR }}"
       register: compose_result
+      changed_when: "'Creating' in compose_result.stdout or 'Starting' in compose_result.stdout"
 
     - name: Display Docker Compose deployment status
       debug:
-        var: compose_result
-        verbosity: 1
+        var: compose_result.stdout_lines
