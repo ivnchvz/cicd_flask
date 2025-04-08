@@ -1,7 +1,7 @@
 ---
 - name: Configure EC2 instance
   hosts: all
-  become: true
+  become: yes
   vars:
     COMPOSE_DIR: /app
     DOCKER_COMPOSE_VERSION: "v2.25.0"
