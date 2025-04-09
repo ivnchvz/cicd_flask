@@ -19,30 +19,8 @@ data "aws_ami" "amazon_linux" {
   }
 }
 
-variable "key_name" {
-  description = "Name of the SSH key pair to use"
-  type        = string
-  default     = "default-key"
-}
-
-variable "aws_region" {
-  default = "us-east-1"
-}
-
-variable "instance_type" {
-  default = "t2.micro"
-}
-
-variable "domain_name" {
-  default = "ivnchvz.com"  
-}
-
-variable "subdomain" {
-  default = "iss"  
-}
-
 data "aws_route53_zone" "main" {
-  name         = "${var.domain_name}."  
+  name         = "${var.domain_name}."
   private_zone = false
 }
 
@@ -68,7 +46,7 @@ resource "aws_security_group" "instance" {
   }
   ingress {
     description = "Frontend access"
-    from_port   = 80  
+    from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
@@ -93,7 +71,7 @@ resource "aws_security_group" "instance" {
 
 resource "aws_route53_record" "app" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "${var.subdomain}.${var.domain_name}"  
+  name    = "${var.subdomain}.${var.domain_name}"  # iss.ivnchvz.com
   type    = "A"
   ttl     = 300
   records = [aws_instance.example.public_ip]
@@ -104,5 +82,5 @@ output "instance_ip" {
 }
 
 output "domain_name" {
-  value = "${var.subdomain}.${var.domain_name}"  
+  value = "${var.subdomain}.${var.domain_name}"  # iss.ivnchvz.com
 }
