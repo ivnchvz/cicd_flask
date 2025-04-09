@@ -1,51 +1,64 @@
 provider "aws" {
-  region = var.aws_region  # Use variable instead of hardcoding
+  region = var.aws_region
 }
 
-# Data source to fetch the latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
-  owners      = ["amazon"]  # AMIs owned by Amazon
-
+  owners      = ["amazon"]
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]  # Pattern for Amazon Linux 2 HVM, EBS-backed
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
-
   filter {
     name   = "virtualization-type"
-    values = ["hvm"]  # Hardware Virtual Machine, compatible with t2.micro
+    values = ["hvm"]
   }
-
   filter {
     name   = "root-device-type"
-    values = ["ebs"]  # EBS-backed instances are Free Tier-eligible
+    values = ["ebs"]
   }
 }
 
-# Variable for key name which will be passed from the pipeline
 variable "key_name" {
   description = "Name of the SSH key pair to use"
   type        = string
-  default     = "default-key"  # This default is just a fallback
+  default     = "default-key"
+}
+
+variable "aws_region" {
+  default = "us-east-1"
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
+
+variable "domain_name" {
+  default = "ivnchvz.com"  
+}
+
+variable "subdomain" {
+  default = "iss"  
+}
+
+data "aws_route53_zone" "main" {
+  name         = "${var.domain_name}."  
+  private_zone = false
 }
 
 resource "aws_instance" "example" {
-  ami                    = data.aws_ami.amazon_linux.id  # Dynamic AMI ID
-  instance_type          = var.instance_type             # Use variable for Free Tier flexibility
-  key_name               = var.key_name                  # Passed from Jenkins pipeline
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.instance.id]
-
   tags = {
-    Name = "TestInstance"
+    Name = "ISS-Tracker-Instance"
   }
 }
 
-# Security group to allow SSH and application access
 resource "aws_security_group" "instance" {
   name        = "allow-app-access"
   description = "Allow SSH and application access"
-
   ingress {
     description = "SSH from anywhere"
     from_port   = 22
@@ -53,15 +66,13 @@ resource "aws_security_group" "instance" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   ingress {
     description = "Frontend access"
-    from_port   = 80
+    from_port   = 80  
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   ingress {
     description = "Backend access"
     from_port   = 5000
@@ -69,19 +80,29 @@ resource "aws_security_group" "instance" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"  # All protocols
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = {
     Name = "allow-app-access"
   }
 }
 
+resource "aws_route53_record" "app" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "${var.subdomain}.${var.domain_name}"  
+  type    = "A"
+  ttl     = 300
+  records = [aws_instance.example.public_ip]
+}
+
 output "instance_ip" {
   value = aws_instance.example.public_ip
+}
+
+output "domain_name" {
+  value = "${var.subdomain}.${var.domain_name}"  
 }

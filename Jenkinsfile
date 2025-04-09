@@ -56,6 +56,7 @@ pipeline {
                             terraform init
                             terraform apply -auto-approve -var=\"key_name=${KEY_NAME}\"
                             terraform output -raw instance_ip > ${WORKSPACE}/instance_ip.txt
+                            terraform output -raw domain_name > ${WORKSPACE}/domain_name.txt
                         """
                     }
                 }
@@ -76,6 +77,7 @@ pipeline {
                 ]) {
                     script {
                         def ec2_ip = sh(script: "cat ${WORKSPACE}/instance_ip.txt", returnStdout: true).trim()
+                        def domain_name = sh(script: "cat ${WORKSPACE}/domain_name.txt", returnStdout: true).trim()
                         sh "sleep 45"
                         sh """
                             apk add --no-cache openssh-client
@@ -87,8 +89,8 @@ pipeline {
                         """
                         echo "========================================"
                         echo "Application deployed successfully!"
-                        echo "Frontend endpoint: http://${ec2_ip}"
-                        echo "Backend endpoint: http://${ec2_ip}:5000"
+                        echo "Frontend endpoint: http://${domain_name}"  // Now iss.ivnchvz.com
+                        echo "Backend endpoint: http://${domain_name}:5000"
                         echo "========================================"
                     }
                 }
@@ -102,6 +104,7 @@ pipeline {
                         aws ec2 delete-key-pair --key-name ${KEY_NAME} --region ${AWS_REGION}
                         rm -f ${KEY_PATH} ${KEY_PATH}.pub
                         rm -f ${WORKSPACE}/instance_ip.txt
+                        rm -f ${WORKSPACE}/domain_name.txt
                     """
                 }
             }
