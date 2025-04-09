@@ -1,4 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Fugaz+One&family=Host+Grotesk:ital,wght@0,300..800;1,300..800&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import "tailwindcss";
+
 
 :root {
   --background: #ffffff;
@@ -42,4 +44,11 @@ body {
   font-family: var(--font-mono);
   font-weight: 700;
   font-style: italic;
+}
+
+.font-host-grotesk {
+  font-family: "Host Grotesk", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-style: normal;
 }

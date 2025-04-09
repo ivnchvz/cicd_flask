@@ -148,9 +148,13 @@ export const Globe: React.FC<GlobeProps> = ({ issLatitude, issLongitude, globeCo
   return (
     <div style={{ position: "absolute", top: 0, left: 0, width: "100vw", height: "100vh" }}>
       {isClient && (
-        <Canvas camera={{ position: [0, 0, 600], fov: 50 }}>
-          <ambientLight color={"#D3D3D3"} intensity={0.8} />
-          <directionalLight color={"#D3D3D3"} position={[-400, 100, 400]} intensity={3.0} />
+        <Canvas
+          camera={{ position: [0, 0, 600], fov: 50 }}
+          gl={{ alpha: true }} // Enable alpha channel for transparency
+          style={{ background: "transparent" }} // Set background to transparent
+        >
+          <ambientLight color={"#FFFFFF"} intensity={3.8} />
+          <directionalLight color={"#FFFFFF"} position={[-400, 100, 400]} intensity={3.0} />
           <OrbitControls
             enableZoom={true}
             minDistance={500}

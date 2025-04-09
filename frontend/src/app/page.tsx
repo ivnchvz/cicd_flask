@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { io } from "socket.io-client";
 import { useEffect, useState } from "react";
+import { StarsBackground } from "../components/ui/stars-background"; // Already added
 
 interface GlobeProps {
   issLatitude: number;
@@ -85,17 +86,18 @@ export default function Home() {
     autoRotate: true,
     autoRotateSpeed: 1,
     globeColor: "#000000",
-    emissive: "#000000",
-    emissiveIntensity: 0.1,
+    emissive: "#91BAD6",
+    emissiveIntensity: 0.2,
     shininess: 0.9,
   };
 
   return (
     <div
       className="flex flex-col items-center justify-center min-h-screen"
-      style={{ backgroundColor: "#D3D3D3" }}
+      style={{ backgroundColor: "#1a1a1a" }}
     >
-      <h1 className="text-3xl space-mono-bold mb-4 text-black">Real-Time ISS Tracker</h1>
+      <StarsBackground className="absolute inset-0 z-0" />
+      <h1 className="text-7xl font-host-grotesk mb-4 text-white">Real-Time ISS Tracker</h1>
       <div className="w-[600px] h-[600px]">
         <Globe
           issLatitude={issPosition.latitude}
@@ -104,15 +106,15 @@ export default function Home() {
         />
       </div>
       <div className="mt-4 text-center">
-        <h2 className="text-xl space-mono-bold text-black">Current ISS Coordinates</h2>
-        <p className="text-lg space-mono-regular">
-          Latitude: <span className="space-mono-regular">{issPosition.latitude.toFixed(6)}</span>
+        <h2 className="text-xl font-host-grotesk text-white">Current ISS Coordinates</h2>
+        <p className="text-lg font-host-grotesk text-white">
+          Latitude: <span>{issPosition.latitude.toFixed(6)}</span>
         </p>
-        <p className="text-lg space-mono-regular">
-          Longitude: <span className="space-mono-regular">{issPosition.longitude.toFixed(6)}</span>
+        <p className="text-lg font-host-grotesk text-white">
+          Longitude: <span>{issPosition.longitude.toFixed(6)}</span>
         </p>
-        <p className="text-lg space-mono-regular">
-          Country Code: <span className="space-mono-regular">{issPosition.countryCode}</span>
+        <p className="text-lg font-host-grotesk text-white">
+          Country Code: <span>{issPosition.countryCode}</span>
         </p>
       </div>
     </div>
