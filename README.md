@@ -23,9 +23,15 @@
                                                                    
 </pre>
 ---
-## Prep
+
+## 🚀 Purpose
+The main broad objective of the ISS tracker is to provide a modern-looking option for users to keep position of the ISS (International Space Station) 
+This allows anyone to calculate sightnings of the satellite in their current position, observate the path traversed by it to learn how orbital elements behave, and simply create a nice atmosphere that relaxes and seeds curiosity on the user. 
+## 🔸DevOps 
+This application is part of a personal project for my resume to showcase the use of modern DevOps technologies and practices, which we will explain in greater detail in the following sections.
+## 🔸 Prep
 #### Kanban Board
-As part of good DevOps practices, I roll a on-premises Kanban board to keep track of every task or feature there is to complete, for a simplified project as this one, I sectioned the board into three different lists: *To-do*, *In-Progress*, and *Done*.
+As part of good DevOps practices, I rolled a on-premises Kanban board to keep track of every task or feature that there is to complete, for a simplified project as this one, I sectioned the board into three different lists: *To-do*, *In-Progress*, and *Done*.
 | To-do | In-Progress | Done |
 | --- | --- | --- |
 |       |             |      |
@@ -43,30 +49,24 @@ First and main thing around this project is to initialize the repository where o
 #### Venv
 The project will consist of a simple Flask application in which we'll make use of the *flask* and *requests* dependencies, to isolate these from the whole system, we are going to utilize a virtual environment.
 
-1. First, we install the *python3-venv* package where the *venv* module is located.
-```bash
-sudo apt install python3-venv -y 
-```
-2. Then, in the directory we want to work in, we initialize the virtual environment  
-```bash
-  python3 -m venv venv 
-```
-3. We then activate the virtual environment
-```bash
-  source /venv/bin/activate
-```
-4. Install the necessary packages
-```bash
-   pip install Flask requirements
-```
-5. Create the *requirements.txt* file
-```bash
-   pip freeze > requirements.txt
-```
-
-
-
 #### Docker
-To easily manage both our frontend and our backend we are going to containerize our applications, this will allow us to seamlessly run it in any computer that has docker installed on it, plus will simplify the process of transporting the application to our production server.
+To easily manage both our frontend and our backend we are going to containerize our applications, this will allow us to seamlessly run it in any computer that has docker installed on it, plus will simplify the process of transporting the application artifact to our production server.
 
 1. In order to install docker engine, we'll follow the instructions written in the official [docs](https://docs.docker.com/engine/install/)
+2. We'll create a Dockerhub account that will host our application images
+
+## 🔸 Backend
+Very simply put our backend fetches the coordinates of the ISS (International Space Station) with the [WTIA API](https://wheretheiss.at/w/developer) , data that is at the same time provided by [Celestrak](https://celestrak.org/)
+## 🔸 Frontend
+Our NextJS application is fed the data that we retrieve, and said coordinates are drawn into our globe component
+## 🔸 Jenkins
+Jenkins is running as a container in our local server that runs the following pipeline
+```mermaid
+graph LR
+    A[Generate SSH Key] --> B[Build and Push Docker Images] --> C[Terraform Apply] --> D[Ansible Deployment] --> E[Cleanup]
+    style A fill:#e8daef,stroke:#333,stroke-width:2px,color:black
+    style B fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
+    style C fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
+    style D fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
+    style E fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
+```
