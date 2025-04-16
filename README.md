@@ -73,3 +73,8 @@ graph LR
     style D fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
     style E fill:#d5d8dc ,stroke:#333,stroke-width:2px,color:black
 ```
+
+## 🔸 Demo
+<p align="center">
+  <img src="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNDlybHRmbnRuamg0aDBjOTRteHRxd3g3YnFtZmwxYTB0dG1pZXV5NSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/pY6HGF72KIlxBT8TYX/giphy.gif">
+</p> 
