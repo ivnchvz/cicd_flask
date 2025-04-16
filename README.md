@@ -22,12 +22,15 @@
                                                     #     
                                                                    
 </pre>
----
+[![Dependencies](https://img.shields.io/librariesio/release/npm/react)](https://libraries.io/npm/react) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![npm Version](https://img.shields.io/npm/v/frontend)](https://www.npmjs.com/package/next)
+[![GitHub Release](https://img.shields.io/github/v/release/ivnchvz/cicd_flask)](https://github.com/ivnchvz/cicd_flask/releases)
+[![Flask](https://img.shields.io/badge/Flask-2.0%2B-000000?style=flat&logo=flask)](https://flask.palletsprojects.com/)
 
 ## 🚀 Purpose
 The main broad objective of the ISS tracker is to provide a modern-looking option for users to keep position of the ISS (International Space Station) 
 This allows anyone to calculate sightnings of the satellite in their current position, observate the path traversed by it to learn how orbital elements behave, and simply create a nice atmosphere that relaxes and seeds curiosity on the user. 
-## 🔸DevOps 
+## 🔸 DevOps 
 This application is part of a personal project for my resume to showcase the use of modern DevOps technologies and practices, which we will explain in greater detail in the following sections.
 ## 🔸 Prep
 #### Kanban Board
